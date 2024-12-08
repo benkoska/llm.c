@@ -197,6 +197,10 @@ endif
 # Check if NCCL is available, include if so, for multi-GPU training
 ifeq ($(NO_MULTI_GPU), 1)
   $(info → Multi-GPU (NCCL) is manually disabled)
+else ifeq ($(USE_MULTI_GPU), 1)
+  $(info ✓ forced NCCL, OK to train with multiple GPUs)
+  NVCC_FLAGS += -DMULTI_GPU
+  NVCC_LDLIBS += -lnccl
 else
   ifneq ($(OS), Windows_NT)
     # Detect if running on macOS or Linux
@@ -219,6 +223,9 @@ OPENMPI_LIB_PATH = $(OPENMPI_DIR)/lib/
 OPENMPI_INCLUDE_PATH = $(OPENMPI_DIR)/include/
 ifeq ($(NO_USE_MPI), 1)
   $(info → MPI is manually disabled)
+else ifeq ($(USE_MPI), 1)
+  NVCC_LDLIBS += -lmpi
+  NVCC_FLAGS += -DUSE_MPI
 else ifeq ($(shell [ -d $(OPENMPI_LIB_PATH) ] && [ -d $(OPENMPI_INCLUDE_PATH) ] && echo "exists"), exists)
   $(info ✓ MPI enabled)
   NVCC_INCLUDES += -I$(OPENMPI_INCLUDE_PATH)

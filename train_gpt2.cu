@@ -559,6 +559,38 @@ void gpt3_set_hyperparameters(GPT2Config* config, const char* channels_str) {
     config->max_seq_len = 2048; // NOTE: GPT-3 uses context length of 2048 tokens, up from 1024 in GPT-2
 }
 
+// # layers == n_layers
+// # heads  == channels / head_size
+// channels = # heads * head_size
+
+// embed_dim == hidden_size == d_model
+
+void koska_set_hyperparameters(GPT2Config* config, const char* descriptor_str) {
+    if (strncmp(descriptor_str, "125M", 4) == 0) {
+        config->num_layers = 30;
+        config->num_heads = 9;
+        config->channels = 576;
+    } else if (strncmp(descriptor_str, "350M", 4) == 0) {
+        config->num_layers = 32;
+        config->num_heads = 15;
+        config->channels = 960;
+    } else if (strncmp(descriptor_str, "1B", 4) == 0) {
+        config->num_layers = 54;
+        config->num_heads = 20;
+        config->channels = 1280;
+    } else if (strncmp(descriptor_str, "1.5B", 4) == 0) {
+      config->num_layers = 54;
+      config->num_heads = 25;
+      config->channels = 1600;
+    } else {
+      fprintf(stderr, "Unsupported KOSKA config: %s\n", descriptor_str);
+      exit(EXIT_FAILURE);
+    }
+
+    config->max_seq_len = 4096;
+}
+
+
 void gpt_build_from_descriptor(GPT2 *model, const char* descriptor) {
     // The model descriptor can be:
     // - legacy format "dX", where X is number, e.g. "d12". This creates GPT-2 model with 12 layers.
@@ -574,6 +606,8 @@ void gpt_build_from_descriptor(GPT2 *model, const char* descriptor) {
         gpt2_set_hyperparameters(&model->config, descriptor + 6); // pass along the depth str without the 'gpt2:d'
     } else if (len > 6 && strncmp(descriptor, "gpt3:c", 6) == 0) {
         gpt3_set_hyperparameters(&model->config, descriptor + 6); // pass along the channels str without the 'gpt3:c'
+    } else if (len > 5 && strncmp(descriptor, "koska:", 6) == 0) {
+        koska_set_hyperparameters(&model->config, descriptor + 6); // pass along the str without the 'koska:'
     } else {
         fprintf(stderr, "Unsupported model descriptor: %s\n", descriptor); exit(EXIT_FAILURE);
     }
@@ -1032,8 +1066,7 @@ float gpt2_calculate_grad_norm(GPT2 *model, MultiGpuConfig* multi_gpu_config) {
     return grad_norm_cpu;
 }
 
-void gpt2_update(GPT2 *model, float learning_rate, float beta1, float beta2, float eps, float weight_decay, float grad_scale, int t,
-                 MultiGpuConfig* multi_gpu_config, bool init_from_master_only=false) {
+void gpt2_update(GPT2 *model, float learning_rate, float beta1, float beta2, float eps, float weight_decay, float grad_scale, int t, MultiGpuConfig* multi_gpu_config, bool init_from_master_only=false) {
     // update the model parameters using the AdamW optimizer
     // keep in mind that optimizer sharding (ZeRO-1) assigns different parameters to different GPUs
     // so we may not be responsible for the entire parameter tensor
